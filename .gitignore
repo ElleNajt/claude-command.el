@@ -1,0 +1,9 @@
+*.elc
+*~
+.#*
+\#*\#
+*.log
+.DS_Store
+TAGS
+tags
+.dir-locals.el
