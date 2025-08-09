@@ -23,7 +23,7 @@
 
 ;;;; Claude Code Queue Management Tools
 
-(claude-code-defmcp mcp-queue-status ()
+(claude-code-defmcp claude-control-queue-status ()
                     "Get the current status of the Claude task queue."
                     :mcp-description "Show current queue status including number of entries and current position"
                     :mcp-schema '()
@@ -42,7 +42,7 @@
                                     (string-join entries ", "))))
                       "Queue management functions not available (claude-code-org-notifications not loaded)"))
 
-(claude-code-defmcp mcp-queue-list ()
+(claude-code-defmcp claude-control-queue-list ()
                     "List all entries in the Claude task queue."
                     :mcp-description "Get a detailed list of all queue entries with their buffer names"
                     :mcp-schema '()
@@ -66,7 +66,7 @@
                                       (string-join entries "\n")))))
                       "Queue management functions not available"))
 
-(claude-code-defmcp mcp-queue-next ()
+(claude-code-defmcp claude-control-queue-next ()
                     "Navigate to the next entry in the task queue."
                     :mcp-description "Move to and switch to the next buffer in the queue"
                     :mcp-schema '()
@@ -76,7 +76,7 @@
                           "Advanced to next queue entry")
                       "Queue navigation functions not available"))
 
-(claude-code-defmcp mcp-queue-previous ()
+(claude-code-defmcp claude-control-queue-previous ()
                     "Navigate to the previous entry in the task queue."
                     :mcp-description "Move to and switch to the previous buffer in the queue"
                     :mcp-schema '()
@@ -86,7 +86,7 @@
                           "Moved to previous queue entry")
                       "Queue navigation functions not available"))
 
-(claude-code-defmcp mcp-queue-skip (buffer-name)
+(claude-code-defmcp claude-control-queue-skip (buffer-name)
                     "Skip (delete) a specific entry from the task queue."
                     :mcp-description "Remove a specific buffer from the queue without processing it"
                     :mcp-schema '((buffer-name . ((or string nil) "Buffer name to skip (optional - uses current position if not provided)")))
@@ -102,7 +102,7 @@
                             "No buffer specified and no current queue position available"))
                       "Queue management functions not available"))
 
-(claude-code-defmcp mcp-queue-goto-recent ()
+(claude-code-defmcp claude-control-queue-goto-recent ()
                     "Go to the most recent workspace from the task queue."
                     :mcp-description "Switch to the workspace containing the most recently added queue entry"
                     :mcp-schema '()
@@ -112,7 +112,7 @@
                           "Switched to most recent workspace from queue")
                       "Queue workspace functions not available"))
 
-(claude-code-defmcp mcp-queue-goto-recent-and-clear ()
+(claude-code-defmcp claude-control-queue-goto-recent-and-clear ()
                     "Go to the most recent workspace and clear its queue entry."
                     :mcp-description "Switch to the most recent workspace and remove its entry from the queue"
                     :mcp-schema '()
@@ -122,7 +122,7 @@
                           "Switched to recent workspace and cleared its queue entry")
                       "Queue workspace functions not available"))
 
-(claude-code-defmcp mcp-queue-browse ()
+(claude-code-defmcp claude-control-queue-browse ()
                     "Browse and select from the task queue interactively."
                     :mcp-description "Show all queue entries and allow selection of which one to switch to"
                     :mcp-schema '()
@@ -132,7 +132,7 @@
                           "Opened queue browser for selection")
                       "Queue browsing functions not available"))
 
-(claude-code-defmcp mcp-queue-toggle-auto-advance ()
+(claude-code-defmcp claude-control-queue-toggle-auto-advance ()
                     "Toggle auto-advance queue mode on or off."
                     :mcp-description "Enable/disable automatic advancement to next queue entry when sending input"
                     :mcp-schema '()
@@ -145,7 +145,7 @@
                                     "unknown")))
                       "Queue auto-advance functions not available"))
 
-(claude-code-defmcp mcp-queue-clear-all ()
+(claude-code-defmcp claude-control-queue-clear-all ()
                     "Clear all entries from the task queue."
                     :mcp-description "Remove all TODO entries from the taskmaster.org file"
                     :mcp-schema '()
