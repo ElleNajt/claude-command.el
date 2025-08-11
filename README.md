@@ -1,6 +1,6 @@
-# Claude Code Org Notifications
+# Claude Command Org Notifications
 
-Org-mode notification queue system for Claude Code - provides persistent task tracking with smart popup notifications and workspace integration.
+Org-mode notification queue system for Claude Command - provides persistent task tracking with smart popup notifications and workspace integration.
 
 ## Features
 
@@ -14,10 +14,10 @@ Org-mode notification queue system for Claude Code - provides persistent task tr
 
 ```elisp
 ;; Load the package
-(require 'claude-code-org-notifications)
+(require 'claude-command-org-notifications)
 
 ;; Set up the org notifications listener
-(claude-code-org-notifications-setup)
+(claude-command-org-notifications-setup)
 ```
 
 ## Keybindings
@@ -26,42 +26,42 @@ Add these keybindings to your Emacs configuration:
 
 ```elisp
 ;; Queue navigation
-(global-set-key (kbd "C-c n n") 'claude-code-queue-next)
-(global-set-key (kbd "C-c n p") 'claude-code-queue-previous)
-(global-set-key (kbd "C-c n s") 'claude-code-queue-skip)
-(global-set-key (kbd "C-c n b") 'claude-code-queue-browse)
-(global-set-key (kbd "C-c n q") 'claude-code-queue-status)
+(global-set-key (kbd "C-c n n") 'claude-command-queue-next)
+(global-set-key (kbd "C-c n p") 'claude-command-queue-previous)
+(global-set-key (kbd "C-c n s") 'claude-command-queue-skip)
+(global-set-key (kbd "C-c n b") 'claude-command-queue-browse)
+(global-set-key (kbd "C-c n q") 'claude-command-queue-status)
 
 ;; Workspace navigation
-(global-set-key (kbd "C-c n g") 'claude-code-goto-recent-workspace)
-(global-set-key (kbd "C-c n c") 'claude-code-goto-recent-workspace-and-clear)
+(global-set-key (kbd "C-c n g") 'claude-command-goto-recent-workspace)
+(global-set-key (kbd "C-c n c") 'claude-command-goto-recent-workspace-and-clear)
 
 ;; Toggle auto-advance mode
-(global-set-key (kbd "C-c n a") 'claude-code-toggle-auto-advance-queue)
+(global-set-key (kbd "C-c n a") 'claude-command-toggle-auto-advance-queue)
 
 ;; Test notification system
-(global-set-key (kbd "C-c n t") 'claude-code-test-notification)
+(global-set-key (kbd "C-c n t") 'claude-command-test-notification)
 ```
 
 ## Commands
 
 ### Queue Navigation
 
-- `claude-code-queue-next` - Navigate to next entry in queue
-- `claude-code-queue-previous` - Navigate to previous entry in queue
-- `claude-code-queue-skip` - Skip current entry and advance
-- `claude-code-queue-browse` - Browse and select from queue using minibuffer
-- `claude-code-queue-status` - Show current queue status
+- `claude-command-queue-next` - Navigate to next entry in queue
+- `claude-command-queue-previous` - Navigate to previous entry in queue
+- `claude-command-queue-skip` - Skip current entry and advance
+- `claude-command-queue-browse` - Browse and select from queue using minibuffer
+- `claude-command-queue-status` - Show current queue status
 
 ### Workspace Commands
 
-- `claude-code-goto-recent-workspace` - Go to most recent workspace from queue
-- `claude-code-goto-recent-workspace-and-clear` - Go to workspace and clear entry
+- `claude-command-goto-recent-workspace` - Go to most recent workspace from queue
+- `claude-command-goto-recent-workspace-and-clear` - Go to workspace and clear entry
 
 ### Configuration
 
-- `claude-code-toggle-auto-advance-queue` - Toggle auto-advance mode
-- `claude-code-test-notification` - Test the notification system
+- `claude-command-toggle-auto-advance-queue` - Toggle auto-advance mode
+- `claude-command-test-notification` - Test the notification system
 
 ## Configuration
 
@@ -69,10 +69,10 @@ Add these keybindings to your Emacs configuration:
 
 ```elisp
 ;; Path to the org file for storing task notifications
-(setq claude-code-taskmaster-org-file "~/.claude/taskmaster.org")
+(setq claude-command-taskmaster-org-file "~/.claude/taskmaster.org")
 
 ;; Enable auto-advance queue mode
-(setq claude-code-auto-advance-queue t)
+(setq claude-command-auto-advance-queue t)
 ```
 
 ### Auto-Advance Mode
@@ -85,7 +85,7 @@ This provides a streamlined workflow for processing multiple completed tasks.
 
 ## How It Works
 
-1. **Task Completion Detection**: Listens to Claude Code events via `claude-code-event-hook`
+1. **Task Completion Detection**: Listens to Claude Command events via `claude-command-event-hook`
 2. **Org Entry Creation**: Creates TODO entries in `~/.claude/taskmaster.org` with timestamps
 3. **Smart Notifications**: Shows popup only when Claude buffer isn't currently visible
 4. **Queue Management**: Navigate through completed tasks using queue commands
@@ -94,10 +94,10 @@ This provides a streamlined workflow for processing multiple completed tasks.
 ## Dependencies
 
 - Emacs 30.0+
-- claude-code 0.2.0+
+- claude-command 0.2.0+
 - org-mode 9.0+
 - perspective.el (optional, for workspace integration)
 
 ## License
 
-Licensed under the same terms as claude-code.el.
+Licensed under the same terms as claude-command.el.
