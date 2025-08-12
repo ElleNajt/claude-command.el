@@ -473,10 +473,21 @@ JSON-DATA is the JSON payload from Claude CLI."
 
 ;;;; Workspace Navigation Commands
 
+(defvar claude-command-previous-workspace nil
+  "The previous workspace before navigating to a Claude buffer.")
+
+(defun claude-command--record-previous-workspace ()
+  "Record the current workspace before switching."
+  (when (featurep 'persp-mode)
+    (let ((current-persp (get-current-persp)))
+      (when current-persp
+        (setq claude-command-previous-workspace (persp-name current-persp))))))
+
 ;;;###autoload
 (defun claude-command-goto-recent-workspace ()
   "Go to the most recent perspective from the taskmaster org file."
   (interactive)
+  (claude-command--record-previous-workspace)
   (if-let ((buffer-name (claude-command--get-most-recent-buffer)))
       (claude-command--switch-to-workspace-for-buffer buffer-name)
     (message "No recent perspective found in taskmaster.org")))
@@ -485,12 +496,44 @@ JSON-DATA is the JSON payload from Claude CLI."
 (defun claude-command-goto-recent-workspace-and-clear ()
   "Go to the most recent perspective and clear the org entry."
   (interactive)
+  (claude-command--record-previous-workspace)
   (if-let ((buffer-name (claude-command--get-most-recent-buffer)))
       (progn
         (claude-command--switch-to-workspace-for-buffer buffer-name)
         (claude-command--clear-most-recent-org-entry)
         (message "Switched to perspective and cleared org entry for buffer: %s" buffer-name))
     (message "No recent perspective found in taskmaster.org")))
+
+;;;###autoload
+(defun claude-command-return-to-previous ()
+  "Return to the previous workspace before last queue navigation."
+  (interactive)
+  (if claude-command-previous-workspace
+      (progn
+        (persp-switch claude-command-previous-workspace)
+        (message "Returned to workspace: %s" claude-command-previous-workspace))
+    (message "No previous workspace recorded")))
+
+;;;###autoload
+(defun claude-command-select-queue-item ()
+  "Select a queue item from pending notifications using minibuffer completion."
+  (interactive)
+  (let ((entries (claude-command--get-all-queue-entries)))
+    (if (null entries)
+        (message "Queue is empty")
+      (let* ((choices (cl-loop for entry in entries
+                               for i from 0
+                               collect (cons (format "%d. %s" (1+ i) entry) entry)))
+             (selection (completing-read "Queue item: " choices nil t))
+             (selected-buffer (cdr (assoc selection choices))))
+        (when selected-buffer
+          ;; Record previous workspace before switching
+          (claude-command--record-previous-workspace)
+          ;; Update queue position to match selection
+          (setq claude-command--queue-position (cl-position selected-buffer entries :test #'string=))
+          ;; Switch to the selected buffer
+          (claude-command--switch-to-workspace-for-buffer selected-buffer)
+          (message "Switched to queue entry: %s" selected-buffer))))))
 
 ;;;; Queue Navigation System
 
@@ -538,6 +581,7 @@ JSON-DATA is the JSON payload from Claude CLI."
 (defun claude-command-queue-next ()
   "Navigate to the next entry in the taskmaster.org queue."
   (interactive)
+  (claude-command--record-previous-workspace)
   (let* ((entries (claude-command--get-all-queue-entries))
          (total (length entries)))
     (if (zerop total)
@@ -551,6 +595,7 @@ JSON-DATA is the JSON payload from Claude CLI."
 (defun claude-command-queue-previous ()
   "Navigate to the previous entry in the taskmaster.org queue."
   (interactive)
+  (claude-command--record-previous-workspace)
   (let* ((entries (claude-command--get-all-queue-entries))
          (total (length entries)))
     (if (zerop total)
@@ -597,6 +642,7 @@ JSON-DATA is the JSON payload from Claude CLI."
 (defun claude-command-queue-browse ()
   "Browse and select from the taskmaster.org queue using minibuffer completion."
   (interactive)
+  (claude-command--record-previous-workspace)
   (let ((entries (claude-command--get-all-queue-entries)))
     (if (null entries)
         (message "Queue is empty")
