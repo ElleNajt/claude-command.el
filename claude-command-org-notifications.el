@@ -17,8 +17,9 @@
 (require 'cl-lib)
 
 ;; Forward declarations for claude-command functions
-(declare-function claude-command-handle-hook "claude-command")
-(defvar claude-command-event-hook)
+;; Note: claude-code-handle-hook is provided by the claude-code package
+(declare-function claude-code-handle-hook "claude-code")
+(defvar claude-code-event-hook)
 
 ;; Declare functions from perspective.el
 (declare-function persp-names "persp-mode")
@@ -168,7 +169,7 @@ to prevent duplicate entries in the queue."
           (when (and (boundp 'evil-mode) evil-mode
                      (string-match-p "^\\*claude:" buffer-name))
             (evil-insert-state))
-          nil)))))
+          nil))))))
 
 (defun claude-command--clear-most-recent-org-entry ()
   "Clear (mark as DONE) the most recent TODO entry in the taskmaster org file."
@@ -269,7 +270,7 @@ nil otherwise."
   "Handle Claude Command hook events for org-mode task tracking.
 
 MESSAGE is a plist with :type, :buffer-name, :json-data, and :args keys.
-This is designed to work with the new claude-command-event-hook system."
+This is designed to work with the new claude-code-event-hook system."
   (let ((hook-type (plist-get message :type))
         (buffer-name (plist-get message :buffer-name))
         (json-data (plist-get message :json-data)))
@@ -417,12 +418,12 @@ JSON-DATA is the JSON payload from Claude CLI."
          (emacsclient-cmd (executable-find "emacsclient"))
          (hooks-config `((hooks . ((Notification . [((matcher . "")
                                                      (hooks . [((type . "command")
-                                                                (command . ,(format "%s --eval \"(claude-command-handle-hook 'notification \\\"$CLAUDE_BUFFER_NAME\\\")\" \"$(cat)\""
+                                                                (command . ,(format "%s --eval \"(claude-code-handle-hook 'notification \\\"$CLAUDE_BUFFER_NAME\\\")\" \"$(cat)\""
                                                                                     emacsclient-cmd)))]))])
 
                                    (Stop . [((matcher . "")
                                              (hooks . [((type . "command")
-                                                        (command . ,(format "%s --eval \"(claude-command-handle-hook 'stop \\\"$CLAUDE_BUFFER_NAME\\\")\" \"$(cat)\""
+                                                        (command . ,(format "%s --eval \"(claude-code-handle-hook 'stop \\\"$CLAUDE_BUFFER_NAME\\\")\" \"$(cat)\""
                                                                             emacsclient-cmd)))]))])))))
          (existing-config (when (file-exists-p settings-file)
                             (condition-case err
@@ -707,16 +708,16 @@ queue and automatically advance to the next queue entry."
 
 ;;;###autoload
 (defun claude-command-org-notifications-setup ()
-  "Set up org-mode notifications using the claude-command-event-hook system."
+  "Set up org-mode notifications using the claude-code-event-hook system."
   (interactive)
-  (add-hook 'claude-command-event-hook 'claude-command-org-notification-listener)
+  (add-hook 'claude-code-event-hook 'claude-command-org-notification-listener)
   (message "Claude Command org-mode notifications configured"))
 
 ;;;###autoload  
 (defun claude-command-org-notifications-remove ()
-  "Remove org-mode notification listener from claude-command-event-hook."
+  "Remove org-mode notification listener from claude-code-event-hook."
   (interactive)
-  (remove-hook 'claude-command-event-hook 'claude-command-org-notification-listener)
+  (remove-hook 'claude-code-event-hook 'claude-command-org-notification-listener)
   (message "Claude Command org-mode notifications removed"))
 
 ;;;; Integration
