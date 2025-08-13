@@ -17,11 +17,12 @@
 ;; Core workflow - the three most used commands
 (global-set-key (kbd "C-c C-g") 'claude-command-goto-recent-workspace)  ; Go to latest
 (global-set-key (kbd "C-c C-r") 'claude-command-return-to-previous)     ; Return to previous workspace
+
 (global-set-key (kbd "C-c C-q") 'claude-command-select-queue-item)      ; Queue selector (minibuffer)
 
 ;; Additional queue operations
-(global-set-key (kbd "C-c q n") 'claude-command-queue-next)         ; Next in queue
-(global-set-key (kbd "C-c q p") 'claude-command-queue-previous)     ; Previous in queue
+(global-set-key (kbd "C-c q ]") 'claude-command-queue-next)         ; Next in queue
+(global-set-key (kbd "C-c q [") 'claude-command-queue-previous)     ; Previous in queue
 (global-set-key (kbd "C-c q s") 'claude-command-queue-skip)         ; Skip current
 (global-set-key (kbd "C-c q b") 'claude-command-queue-browse)       ; Browse queue (alternative)
 (global-set-key (kbd "C-c q q") 'claude-command-queue-status)       ; Query status

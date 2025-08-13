@@ -514,26 +514,6 @@ JSON-DATA is the JSON payload from Claude CLI."
         (message "Returned to workspace: %s" claude-command-previous-workspace))
     (message "No previous workspace recorded")))
 
-;;;###autoload
-(defun claude-command-select-queue-item ()
-  "Select a queue item from pending notifications using minibuffer completion."
-  (interactive)
-  (let ((entries (claude-command--get-all-queue-entries)))
-    (if (null entries)
-        (message "Queue is empty")
-      (let* ((choices (cl-loop for entry in entries
-                               for i from 0
-                               collect (cons (format "%d. %s" (1+ i) entry) entry)))
-             (selection (completing-read "Queue item: " choices nil t))
-             (selected-buffer (cdr (assoc selection choices))))
-        (when selected-buffer
-          ;; Record previous workspace before switching
-          (claude-command--record-previous-workspace)
-          ;; Update queue position to match selection
-          (setq claude-command--queue-position (cl-position selected-buffer entries :test #'string=))
-          ;; Switch to the selected buffer
-          (claude-command--switch-to-workspace-for-buffer selected-buffer)
-          (message "Switched to queue entry: %s" selected-buffer))))))
 
 ;;;; Queue Navigation System
 
@@ -777,6 +757,18 @@ queue and automatically advance to the next queue entry."
                (window-height . 0.1)
                (select . nil)
                (quit-window . kill)))
+
+;;;; Keybindings
+
+;; Battlestation keybindings - C-c C-b prefix
+(global-set-key (kbd "C-c C-b b") 'claude-command-queue-browse)           ; Browse queue
+(global-set-key (kbd "C-c C-b [") 'claude-command-queue-previous)         ; Previous in queue  
+(global-set-key (kbd "C-c C-b ]") 'claude-command-queue-next)             ; Next in queue
+(global-set-key (kbd "C-c C-b g") 'claude-command-goto-recent-workspace)  ; Go to recent
+(global-set-key (kbd "C-c C-b r") 'claude-command-return-to-previous)     ; Return to previous
+(global-set-key (kbd "C-c C-b s") 'claude-command-queue-skip)             ; Skip current entry
+(global-set-key (kbd "C-c C-b t") 'claude-command-toggle-auto-advance-queue) ; Toggle auto-advance
+(global-set-key (kbd "C-c C-b ?") 'claude-command-queue-status)           ; Show queue status
 
 (provide 'claude-command)
 
