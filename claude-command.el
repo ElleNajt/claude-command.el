@@ -1,8 +1,8 @@
-;;; claude-command-org-notifications.el --- Org mode notification queue for Claude Command -*- lexical-binding: t; -*-
+;;; claude-command.el --- Org mode notification queue for Claude Command -*- lexical-binding: t; -*-
 
 ;; Author: Claude AI
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "30.0") (claude-command "0.2.0") (org "9.0"))
+;; Package-Requires: ((emacs "30.0") (org "9.0"))
 ;; Keywords: tools, ai, org
 
 ;;; Commentary:
@@ -777,6 +777,6 @@ queue and automatically advance to the next queue entry."
                (select . nil)
                (quit-window . kill)))
 
-(provide 'claude-command-org-notifications)
+(provide 'claude-command)
 
-;;; claude-command-org-notifications.el ends here
+;;; claude-command.el ends here

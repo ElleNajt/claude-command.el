@@ -1,4 +1,4 @@
-;;; claude-command-org-notifications-keybindings.el --- Improved keybindings for Claude Command -*- lexical-binding: t; -*-
+;;; claude-command-keybindings.el --- keybindings for Claude Command -*- lexical-binding: t; -*-
 
 ;;; Commentary:
 ;; Improved keybinding scheme focused on the most common workflow:
@@ -10,7 +10,7 @@
 
 ;;; Code:
 
-(require 'claude-command-org-notifications)
+(require 'claude-command)
 
 ;;;; Option 1: Standard C-c prefix keybindings (more compatible)
 
@@ -46,6 +46,6 @@
 ;; (global-set-key (kbd "<f6>") 'claude-command-goto-recent-workspace)
 ;; (global-set-key (kbd "<f7>") 'claude-command-return-to-previous)
 
-(provide 'claude-command-org-notifications-keybindings-improved)
+(provide 'claude-command-keybindings)
 
-;;; claude-command-org-notifications-keybindings-improved.el ends here
+;;; claude-command-keybindings.el ends here
