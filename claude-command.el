@@ -563,6 +563,7 @@ JSON-DATA is the JSON payload from Claude CLI."
   (when (file-exists-p claude-command-taskmaster-org-file)
     (with-temp-buffer
       (insert-file-contents claude-command-taskmaster-org-file)
+      (org-mode)  ; Enable org-mode so org functions work properly
       (goto-char (point-min))
       (let (found)
         (while (and (not found) (re-search-forward claude-command-org-todo-pattern nil t))
