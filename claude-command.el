@@ -753,14 +753,14 @@ queue and automatically advance to the next queue entry."
 ;;;; Hook Integration Setup
 
 ;;;###autoload
-(defun claude-command-org-notifications-setup ()
+(defun claude-command-setup ()
   "Set up org-mode notifications using the claude-code-event-hook system."
   (interactive)
   (add-hook 'claude-code-event-hook 'claude-command-org-notification-listener)
   (message "Claude Command org-mode notifications configured"))
 
 ;;;###autoload  
-(defun claude-command-org-notifications-remove ()
+(defun claude-command-remove ()
   "Remove org-mode notification listener from claude-code-event-hook."
   (interactive)
   (remove-hook 'claude-code-event-hook 'claude-command-org-notification-listener)
