@@ -545,16 +545,28 @@ JSON-DATA is the JSON payload from Claude CLI."
       (insert-file-contents claude-command-taskmaster-org-file)
       (org-mode)  ; Enable org-mode so org functions work properly
       (goto-char (point-min))
-      (let (found)
-        (while (and (not found) (re-search-forward claude-command-org-todo-pattern nil t))
-          (let ((entry-start (match-beginning 0)))
+      (let (deleted-any)
+        (while (re-search-forward claude-command-org-todo-pattern nil t)
+          (let ((entry-start (match-beginning 0))
+                (search-start (point)))
+            ;; Look for the buffer name within this entry
             (when (re-search-forward (format "Buffer: \\[\\[elisp:(switch-to-buffer \"%s\")" (regexp-quote buffer-name)) nil t)
-              (goto-char entry-start)
-              (if (org-next-visible-heading 1)
-                  (delete-region entry-start (point))
-                (delete-region entry-start (point-max)))
-              (setq found t))))
-        (when found
+              ;; Check if we're still in the same entry by ensuring we haven't passed another TODO
+              (save-excursion
+                (when (or (not (re-search-forward claude-command-org-todo-pattern nil t))
+                          (> (match-beginning 0) (point)))
+                  ;; We found the buffer name in this entry, delete it
+                  (goto-char entry-start)
+                  (if (org-next-visible-heading 1)
+                      (delete-region entry-start (point))
+                    (delete-region entry-start (point-max)))
+                  (setq deleted-any t)
+                  ;; After deletion, restart search from beginning since positions changed
+                  (goto-char (point-min)))))
+            ;; If we didn't delete anything, continue from where we were
+            (unless deleted-any
+              (goto-char search-start))))
+        (when deleted-any
           (write-region (point-min) (point-max) claude-command-taskmaster-org-file)
           t)))))
 
