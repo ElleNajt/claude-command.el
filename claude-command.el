@@ -772,7 +772,7 @@ queue and automatically advance to the next queue entry."
 
 ;;;; Keybindings
 
-;; Battlestation keybindings - C-c C-b prefix
+;; Battlestation keybindings - C-c C-b prefix (original)
 (global-set-key (kbd "C-c C-b b") 'claude-command-queue-browse)           ; Browse queue
 (global-set-key (kbd "C-c C-b [") 'claude-command-queue-previous)         ; Previous in queue  
 (global-set-key (kbd "C-c C-b ]") 'claude-command-queue-next)             ; Next in queue
@@ -781,6 +781,16 @@ queue and automatically advance to the next queue entry."
 (global-set-key (kbd "C-c C-b s") 'claude-command-queue-skip)             ; Skip current entry
 (global-set-key (kbd "C-c C-b t") 'claude-command-toggle-auto-advance-queue) ; Toggle auto-advance
 (global-set-key (kbd "C-c C-b ?") 'claude-command-queue-status)           ; Show queue status
+
+;; More ergonomic battlestation keybindings - C-c b prefix
+(global-set-key (kbd "C-c b b") 'claude-command-queue-browse)             ; Browse queue
+(global-set-key (kbd "C-c b [") 'claude-command-queue-previous)           ; Previous in queue  
+(global-set-key (kbd "C-c b ]") 'claude-command-queue-next)               ; Next in queue
+(global-set-key (kbd "C-c b g") 'claude-command-goto-recent-workspace)    ; Go to recent
+(global-set-key (kbd "C-c b r") 'claude-command-return-to-previous)       ; Return to previous
+(global-set-key (kbd "C-c b s") 'claude-command-queue-skip)               ; Skip current entry
+(global-set-key (kbd "C-c b t") 'claude-command-toggle-auto-advance-queue) ; Toggle auto-advance
+(global-set-key (kbd "C-c b ?") 'claude-command-queue-status)             ; Show queue status
 
 (provide 'claude-command)
 
