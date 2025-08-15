@@ -100,4 +100,4 @@ This provides a streamlined workflow for processing multiple completed tasks.
 
 ## License
 
-Licensed under the same terms as claude-command.el.
+Licensed under the same terms as claude-command.el.# Test update for submodule testing
