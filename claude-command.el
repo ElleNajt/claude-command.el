@@ -539,36 +539,53 @@ JSON-DATA is the JSON payload from Claude CLI."
       (nth position entries))))
 
 (defun claude-command--delete-queue-entry-for-buffer (buffer-name)
-  "Delete the queue entry corresponding to BUFFER-NAME from taskmaster.org."
+  "Delete ALL queue entries corresponding to BUFFER-NAME from taskmaster.org."
   (when (file-exists-p claude-command-taskmaster-org-file)
-    (with-temp-buffer
-      (insert-file-contents claude-command-taskmaster-org-file)
-      (org-mode)  ; Enable org-mode so org functions work properly
-      (goto-char (point-min))
-      (let (deleted-any)
-        (while (re-search-forward claude-command-org-todo-pattern nil t)
-          (let ((entry-start (match-beginning 0))
-                (search-start (point)))
-            ;; Look for the buffer name within this entry
-            (when (re-search-forward (format "Buffer: \\[\\[elisp:(switch-to-buffer \"%s\")" (regexp-quote buffer-name)) nil t)
-              ;; Check if we're still in the same entry by ensuring we haven't passed another TODO
-              (save-excursion
-                (when (or (not (re-search-forward claude-command-org-todo-pattern nil t))
-                          (> (match-beginning 0) (point)))
-                  ;; We found the buffer name in this entry, delete it
-                  (goto-char entry-start)
-                  (if (org-next-visible-heading 1)
-                      (delete-region entry-start (point))
-                    (delete-region entry-start (point-max)))
-                  (setq deleted-any t)
-                  ;; After deletion, restart search from beginning since positions changed
-                  (goto-char (point-min)))))
-            ;; If we didn't delete anything, continue from where we were
-            (unless deleted-any
-              (goto-char search-start))))
-        (when deleted-any
-          (write-region (point-min) (point-max) claude-command-taskmaster-org-file)
-          t)))))
+    (let ((lines '())
+          (current-entry-lines '())
+          (in-matching-entry nil)
+          (deleted-count 0))
+      (with-temp-buffer
+        (insert-file-contents claude-command-taskmaster-org-file)
+        (goto-char (point-min))
+        (while (not (eobp))
+          (let ((line (buffer-substring-no-properties 
+                       (line-beginning-position) 
+                       (line-end-position))))
+            (cond
+             ;; Start of a new TODO entry
+             ((string-match claude-command-org-todo-pattern line)
+              ;; Save previous entry if it wasn't matching
+              (when (and current-entry-lines (not in-matching-entry))
+                (setq lines (append lines current-entry-lines)))
+              (when in-matching-entry
+                (setq deleted-count (1+ deleted-count)))
+              ;; Start new entry
+              (setq current-entry-lines (list line))
+              (setq in-matching-entry nil))
+             ;; Check if this line contains our buffer name
+             ((and current-entry-lines 
+                   (string-match (regexp-quote buffer-name) line))
+              (setq in-matching-entry t)
+              (setq current-entry-lines (append current-entry-lines (list line))))
+             ;; Regular line in current entry
+             (current-entry-lines
+              (setq current-entry-lines (append current-entry-lines (list line))))
+             ;; Line outside any entry
+             (t
+              (setq lines (append lines (list line)))))
+            (forward-line 1)))
+        ;; Handle final entry
+        (when current-entry-lines
+          (if in-matching-entry
+              (setq deleted-count (1+ deleted-count))
+            (setq lines (append lines current-entry-lines)))))
+      ;; Write back to file
+      (with-temp-buffer
+        (dolist (line lines)
+          (insert line "\n"))
+        (write-region (point-min) (point-max) claude-command-taskmaster-org-file))
+      (> deleted-count 0))))
 
 ;;;###autoload
 (defun claude-command-queue-next ()
