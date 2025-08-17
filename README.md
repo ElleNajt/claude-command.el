@@ -1,6 +1,6 @@
-# Claude Command Org Notifications
+# Claude Command
 
-Org-mode notification queue system for Claude Command - provides persistent task tracking with smart popup notifications and workspace integration.
+Emacs integration for Claude - provides persistent task tracking with smart popup notifications and workspace integration.
 
 ## Features
 
@@ -14,54 +14,61 @@ Org-mode notification queue system for Claude Command - provides persistent task
 
 ```elisp
 ;; Load the package
-(require 'claude-command-org-notifications)
+(require 'claude-command)
 
-;; Set up the org notifications listener
-(claude-command-org-notifications-setup)
+;; The package auto-initializes when loaded
 ```
 
 ## Keybindings
 
-Add these keybindings to your Emacs configuration:
+The package includes two sets of keybindings for queue management:
+
+### Ergonomic Keybindings (C-c b prefix)
 
 ```elisp
-;; Queue navigation
-(global-set-key (kbd "C-c n n") 'claude-command-queue-next)
-(global-set-key (kbd "C-c n p") 'claude-command-queue-previous)
-(global-set-key (kbd "C-c n s") 'claude-command-queue-skip)
-(global-set-key (kbd "C-c n b") 'claude-command-queue-browse)
-(global-set-key (kbd "C-c n q") 'claude-command-queue-status)
+;; More ergonomic battlestation keybindings - fewer keystrokes
+(global-set-key (kbd "C-c b b") 'claude-command-queue-browse)              ; Browse queue
+(global-set-key (kbd "C-c b [") 'claude-command-queue-previous)            ; Previous in queue  
+(global-set-key (kbd "C-c b ]") 'claude-command-queue-next)                ; Next in queue
+(global-set-key (kbd "C-c b g") 'claude-command-goto-recent-workspace)     ; Go to recent workspace
+(global-set-key (kbd "C-c b r") 'claude-command-return-to-previous)        ; Return to previous buffer
+(global-set-key (kbd "C-c b s") 'claude-command-queue-skip)                ; Skip current entry
+(global-set-key (kbd "C-c b t") 'claude-command-toggle-auto-advance-queue) ; Toggle auto-advance
+(global-set-key (kbd "C-c b ?") 'claude-command-queue-status)              ; Show queue status
+```
 
-;; Workspace navigation
-(global-set-key (kbd "C-c n g") 'claude-command-goto-recent-workspace)
-(global-set-key (kbd "C-c n c") 'claude-command-goto-recent-workspace-and-clear)
+### Original Keybindings (C-c C-b prefix)
 
-;; Toggle auto-advance mode
-(global-set-key (kbd "C-c n a") 'claude-command-toggle-auto-advance-queue)
-
-;; Test notification system
-(global-set-key (kbd "C-c n t") 'claude-command-test-notification)
+```elisp
+;; Original battlestation keybindings
+(global-set-key (kbd "C-c C-b b") 'claude-command-queue-browse)           
+(global-set-key (kbd "C-c C-b [") 'claude-command-queue-previous)         
+(global-set-key (kbd "C-c C-b ]") 'claude-command-queue-next)             
+(global-set-key (kbd "C-c C-b g") 'claude-command-goto-recent-workspace)  
+(global-set-key (kbd "C-c C-b r") 'claude-command-return-to-previous)     
+(global-set-key (kbd "C-c C-b s") 'claude-command-queue-skip)             
+(global-set-key (kbd "C-c C-b t") 'claude-command-toggle-auto-advance-queue)
+(global-set-key (kbd "C-c C-b ?") 'claude-command-queue-status)           
 ```
 
 ## Commands
 
 ### Queue Navigation
 
-- `claude-command-queue-next` - Navigate to next entry in queue
-- `claude-command-queue-previous` - Navigate to previous entry in queue
-- `claude-command-queue-skip` - Skip current entry and advance
-- `claude-command-queue-browse` - Browse and select from queue using minibuffer
-- `claude-command-queue-status` - Show current queue status
+- `claude-command-queue-next` (`C-c b ]`) - Navigate to next entry in queue
+- `claude-command-queue-previous` (`C-c b [`) - Navigate to previous entry in queue
+- `claude-command-queue-skip` (`C-c b s`) - Skip current entry and advance
+- `claude-command-queue-browse` (`C-c b b`) - Browse and select from queue using minibuffer
+- `claude-command-queue-status` (`C-c b ?`) - Show current queue status
 
 ### Workspace Commands
 
-- `claude-command-goto-recent-workspace` - Go to most recent workspace from queue
-- `claude-command-goto-recent-workspace-and-clear` - Go to workspace and clear entry
+- `claude-command-goto-recent-workspace` (`C-c b g`) - Go to most recent workspace from queue
+- `claude-command-return-to-previous` (`C-c b r`) - Return to previous buffer
 
 ### Configuration
 
-- `claude-command-toggle-auto-advance-queue` - Toggle auto-advance mode
-- `claude-command-test-notification` - Test the notification system
+- `claude-command-toggle-auto-advance-queue` (`C-c b t`) - Toggle auto-advance mode
 
 ## Configuration
 
@@ -91,13 +98,17 @@ This provides a streamlined workflow for processing multiple completed tasks.
 4. **Queue Management**: Navigate through completed tasks using queue commands
 5. **Auto-Clear**: Entries are automatically cleared when you respond in a Claude buffer
 
+## MCP Integration
+
+This package includes MCP (Model Context Protocol) integration through the [emacs-mcp](https://github.com/ElleNajt/emacs-mcp) server, providing Claude with direct access to Emacs functionality.
+
 ## Dependencies
 
 - Emacs 30.0+
-- claude-command 0.2.0+
 - org-mode 9.0+
 - perspective.el (optional, for workspace integration)
+- [emacs-mcp](https://github.com/ElleNajt/emacs-mcp) (optional, for MCP tools)
 
 ## License
 
-Licensed under the same terms as claude-command.el.
+Licensed under the same terms as Emacs.
