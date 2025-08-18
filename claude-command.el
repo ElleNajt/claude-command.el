@@ -62,6 +62,58 @@ This provides a streamlined workflow for processing multiple completed tasks."
   :type 'boolean
   :group 'claude-command)
 
+(defcustom claude-command-notification-style 'message
+  "How to display Claude task completion notifications.
+
+'popup - Show notifications in a popup window at the bottom
+'message - Show notifications in the echo area (minibuffer)
+'both - Show both popup and message notifications
+'none - Disable notifications entirely"
+  :type '(choice (const :tag "Popup window" popup)
+                 (const :tag "Echo area message" message)
+                 (const :tag "Both popup and message" both)
+                 (const :tag "No notifications" none))
+  :group 'claude-command)
+
+;;;; Modeline notification support
+
+(defvar claude-command--modeline-notification nil
+  "Current modeline notification string, or nil if none.")
+
+(defvar claude-command--modeline-notification-timer nil
+  "Timer for auto-clearing modeline notifications.")
+
+(defun claude-command--show-modeline-notification (message &optional timeout)
+  "Show MESSAGE in the modeline for TIMEOUT seconds (default 10)."
+  (setq claude-command--modeline-notification 
+        (propertize (format " [Claude: %s]" message)
+                    'face 'mode-line-emphasis))
+  (force-mode-line-update t)
+  
+  ;; Cancel any existing timer
+  (when claude-command--modeline-notification-timer
+    (cancel-timer claude-command--modeline-notification-timer))
+  
+  ;; Set new timer to clear notification
+  (setq claude-command--modeline-notification-timer
+        (run-with-timer (or timeout 10) nil
+                        'claude-command--clear-modeline-notification)))
+
+(defun claude-command--clear-modeline-notification ()
+  "Clear the current modeline notification."
+  (setq claude-command--modeline-notification nil)
+  (setq claude-command--modeline-notification-timer nil)
+  (force-mode-line-update t))
+
+;;;; Modeline integration
+
+(defun claude-command--setup-modeline ()
+  "Add Claude notifications to the modeline."
+  ;; For regular modeline (non-doom-modeline)
+  (unless (memq 'claude-command--modeline-notification global-mode-string)
+    (setq global-mode-string 
+          (append global-mode-string '(claude-command--modeline-notification)))))
+
 ;;;; Org mode integration functions
 
 (defun claude-command--ensure-claude-directory ()
@@ -107,7 +159,8 @@ to prevent duplicate entries in the queue."
       (insert (format "  Buffer: %s\n" buffer-link))
       (insert (format "  Actions: [[elisp:(claude-command--switch-to-workspace-for-buffer \"%s\")][Go to Workspace]] | [[elisp:(claude-command--clear-current-org-entry-and-switch \"%s\")][Clear and Go to Workspace]]\n" buffer-name buffer-name))
       (insert "\n")
-      (write-region (point-min) (point-max) claude-command-taskmaster-org-file))))
+      ;; Suppress "Wrote file" messages with silent write
+      (write-region (point-min) (point-max) claude-command-taskmaster-org-file nil 'silent))))
 
 (defun claude-command--get-most-recent-buffer ()
   "Get the most recent Claude buffer name from the taskmaster org file."
@@ -179,7 +232,8 @@ to prevent duplicate entries in the queue."
       (goto-char (point-max))
       (when (re-search-backward claude-command-org-todo-pattern nil t)
         (replace-match "* DONE Claude task completed")
-        (write-region (point-min) (point-max) claude-command-taskmaster-org-file)))))
+        ;; Suppress "Wrote file" messages with silent write
+        (write-region (point-min) (point-max) claude-command-taskmaster-org-file nil 'silent)))))
 
 (defun claude-command--clear-current-org-entry-and-switch (buffer-name)
   "Delete the current TODO entry and switch to workspace for BUFFER-NAME."
@@ -295,32 +349,45 @@ JSON-DATA is the JSON payload from Claude CLI."
     ;; Always add entry to org file regardless of visibility
     (claude-command--add-org-todo-entry buffer-name message)
     
-    ;; Only show popup notification if buffer is not currently visible
-    (unless buffer-visible
-      (let ((queue-total (length (claude-command--get-all-queue-entries))))
-        (with-current-buffer (get-buffer-create notification-buffer)
-          (let ((inhibit-read-only t))
-            (erase-buffer)
-            (insert (format "%s%s\nBuffer: %s" 
-                            message
-                            (if (> queue-total 0)
-                                (format " - %d in queue" queue-total)
-                              "")
-                            (or buffer-name "unknown buffer")))
-            (goto-char (point-min))
-            (setq buffer-read-only t))
-          
-          ;; Display as small popup without stealing focus
-          (display-buffer notification-buffer 
-                          '((display-buffer-in-side-window)
-                            (side . bottom)
-                            (window-height . 1)
-                            (select . nil)))
-          
-          ;; Auto-dismiss after 2 seconds
-          (run-with-timer 2 nil `(lambda ()
-                                   (when (get-buffer ,notification-buffer)
-                                     (kill-buffer ,notification-buffer)))))))
+    ;; Show notifications based on style setting, but only if buffer is not currently visible
+    (unless (or buffer-visible (eq claude-command-notification-style 'none))
+      (let* ((queue-total (length (claude-command--get-all-queue-entries)))
+             (notification-text (format "%s%s - Buffer: %s" 
+                                        message
+                                        (if (> queue-total 0)
+                                            (format " (%d in queue)" queue-total)
+                                          "")
+                                        (or buffer-name "unknown buffer")))
+             (short-notification (format "%s (%d in queue)" 
+                                        (if (string-match "Claude \\(.*\\)" message)
+                                            (match-string 1 message)
+                                          message)
+                                        queue-total)))
+        
+        ;; Show message notification
+        (when (memq claude-command-notification-style '(message both))
+          (message "Claude: %s" short-notification))
+        
+        ;; Show popup notification
+        (when (memq claude-command-notification-style '(popup both))
+          (with-current-buffer (get-buffer-create notification-buffer)
+            (let ((inhibit-read-only t))
+              (erase-buffer)
+              (insert notification-text)
+              (goto-char (point-min))
+              (setq buffer-read-only t))
+            
+            ;; Display as small popup without stealing focus
+            (display-buffer notification-buffer 
+                            '((display-buffer-in-side-window)
+                              (side . bottom)
+                              (window-height . 1)
+                              (select . nil)))
+            
+            ;; Auto-dismiss after 2 seconds
+            (run-with-timer 2 nil `(lambda ()
+                                     (when (get-buffer ,notification-buffer)
+                                       (kill-buffer ,notification-buffer))))))))
     
     ;; Disabled complex popup - keeping code for potential future use
     (when nil  ;; Change to t to re-enable complex popups
@@ -584,7 +651,8 @@ JSON-DATA is the JSON payload from Claude CLI."
       (with-temp-buffer
         (dolist (line lines)
           (insert line "\n"))
-        (write-region (point-min) (point-max) claude-command-taskmaster-org-file))
+        ;; Suppress "Wrote file" messages with silent write
+        (write-region (point-min) (point-max) claude-command-taskmaster-org-file nil 'silent))
       (> deleted-count 0))))
 
 ;;;###autoload
@@ -808,6 +876,11 @@ queue and automatically advance to the next queue entry."
 (global-set-key (kbd "C-c b s") 'claude-command-queue-skip)               ; Skip current entry
 (global-set-key (kbd "C-c b t") 'claude-command-toggle-auto-advance-queue) ; Toggle auto-advance
 (global-set-key (kbd "C-c b ?") 'claude-command-queue-status)             ; Show queue status
+
+;;;; Package initialization
+
+;; Set up modeline notifications
+(claude-command--setup-modeline)
 
 (provide 'claude-command)
 
