@@ -1,14 +1,16 @@
 # Claude Command
 
-Emacs integration for Claude - provides persistent task tracking with smart popup notifications and workspace integration.
+Emacs integration for Claude - provides persistent task tracking with clean notifications and workspace integration.
 
 ## Features
 
 - **Persistent Task Queue** - Track completed Claude tasks in `~/.claude/taskmaster.org`
-- **Smart Notifications** - Popup notifications only when Claude buffer isn't visible
+- **Clean Notifications** - Minibuffer messages by default, with options for popups or none
+- **Silent Operations** - No "Wrote file" messages cluttering your echo area
 - **Workspace Navigation** - Integration with perspective.el for workspace-aware switching
 - **Auto-Advance Mode** - Automatically progress through queue after responding
 - **Queue Management** - Navigate, browse, and skip queue entries with ease
+- **Deduplication** - Automatic removal of duplicate queue entries
 
 ## Installation
 
@@ -78,6 +80,9 @@ The package includes two sets of keybindings for queue management:
 ;; Path to the org file for storing task notifications
 (setq claude-command-taskmaster-org-file "~/.claude/taskmaster.org")
 
+;; Notification style: 'message (default), 'popup, 'both, or 'none
+(setq claude-command-notification-style 'message)
+
 ;; Enable auto-advance queue mode
 (setq claude-command-auto-advance-queue t)
 ```
@@ -94,9 +99,10 @@ This provides a streamlined workflow for processing multiple completed tasks.
 
 1. **Task Completion Detection**: Listens to Claude Command events via `claude-command-event-hook`
 2. **Org Entry Creation**: Creates TODO entries in `~/.claude/taskmaster.org` with timestamps
-3. **Smart Notifications**: Shows popup only when Claude buffer isn't currently visible
+3. **Smart Notifications**: Shows messages in minibuffer only when Claude buffer isn't currently visible
 4. **Queue Management**: Navigate through completed tasks using queue commands
 5. **Auto-Clear**: Entries are automatically cleared when you respond in a Claude buffer
+6. **Silent File Operations**: Uses silent write operations to avoid cluttering the echo area
 
 ## MCP Integration
 
