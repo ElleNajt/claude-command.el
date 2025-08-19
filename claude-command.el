@@ -298,78 +298,63 @@ to prevent duplicate entries in the queue."
 
 ;;;; PreToolUse Hook System
 
-(defvar claude-command--active-pre-tool-use-timer nil
-  "Timer for automatically clearing PreToolUse minibuffer prompts.")
-
-(defvar claude-command--pre-tool-use-active nil
-  "Whether a PreToolUse prompt is currently active in the minibuffer.")
-
-(defun claude-command--handle-pre-tool-use (buffer-name json-data)
-  "Handle PreToolUse hook events to display input requests in minibuffer.
+;;;###autoload
+(defun claude-command-pretooluse-handler (buffer-name &optional json-input)
+  "Custom PreToolUse handler that shows minibuffer prompt and returns JSON response.
 
 BUFFER-NAME is the Claude buffer name.
-JSON-DATA contains the tool use information that needs permission."
-  (when json-data
-    (condition-case err
-        (let* ((data (json-read-from-string json-data))
-               (tool-name (cdr (assq 'tool_name data)))
-               (tool-args (cdr (assq 'tool_arguments data)))
-               (prompt-text (format "Claude wants to use %s%s - Allow? (y/n/q): " 
-                                   (or tool-name "unknown tool")
-                                   (if tool-args 
-                                       (format " with args: %s" 
-                                              (if (stringp tool-args)
-                                                  tool-args
-                                                (json-encode tool-args)))
-                                     ""))))
-          ;; Clear any existing timer
-          (when claude-command--active-pre-tool-use-timer
-            (cancel-timer claude-command--active-pre-tool-use-timer)
-            (setq claude-command--active-pre-tool-use-timer nil))
-          
-          ;; Set flag to indicate active prompt
-          (setq claude-command--pre-tool-use-active t)
-          
-          ;; Show prompt in minibuffer with async input
-          (run-with-timer 0.1 nil 
-                         (lambda ()
-                           (claude-command--show-pre-tool-use-prompt prompt-text buffer-name data))))
-      (error
-       (message "Error parsing PreToolUse JSON: %s" (error-message-string err))))))
+JSON-INPUT is the tool data, read from stdin if not provided."
+  (message "[PRETOOLUSE DEBUG] claude-command-pretooluse-handler called with buffer-name=%s json-input=%s" buffer-name json-input)
+  
+  (let* ((json-data (or json-input 
+                        (with-temp-buffer
+                          (while (not (eobp))
+                            (insert (read-string "")))
+                          (buffer-string))))
+         (data (condition-case err
+                   (json-read-from-string json-data)
+                 (error 
+                  (message "[PRETOOLUSE ERROR] Failed to parse JSON: %s, data was: %s" err json-data)
+                  nil)))
+         (tool-name (when data (cdr (assq 'tool_name data))))
+         (tool-input (when data (cdr (assq 'tool_input data))))
+         (tool-args (when data (cdr (assq 'tool_arguments data)))))
+    
+    (message "[PRETOOLUSE DEBUG] Parsed data: tool-name=%s tool-input=%s tool-args=%s" tool-name tool-input tool-args)
+    
+    (let ((prompt-text (format "Claude wants to use %s%s - Allow? (y/n/q): " 
+                              (or tool-name "unknown tool")
+                              (if (or tool-args tool-input)
+                                  (format " with args: %s" 
+                                         (json-encode (or tool-input tool-args)))
+                                ""))))
+      
+      (message "[PRETOOLUSE DEBUG] Showing prompt: %s" prompt-text)
+      
+      ;; Show prompt and get user response
+      (let* ((response (read-char-choice prompt-text '(?y ?n ?q ?Y ?N ?Q)))
+             (decision (cond
+                       ((memq response '(?y ?Y)) "allow")
+                       ((memq response '(?n ?N)) "deny")
+                       (t "ask")))
+             (reason (cond
+                     ((string= decision "allow") "User approved via minibuffer")
+                     ((string= decision "deny") "User denied via minibuffer")
+                     (t "User requested UI confirmation")))
+             (response-json (json-encode `((hookSpecificOutput . ((hookEventName . "PreToolUse")
+                                                                 (permissionDecision . ,decision)
+                                                                 (permissionDecisionReason . ,reason)))))))
+        
+        (message "[PRETOOLUSE DEBUG] User chose: %s, sending response: %s" decision response-json)
+        (message "PreToolUse: %s" decision)
+        
+        ;; Return the response for claude-code-handle-hook to output
+        response-json))))
 
-(defun claude-command--show-pre-tool-use-prompt (prompt-text buffer-name data)
-  "Show PreToolUse prompt in minibuffer with PROMPT-TEXT for BUFFER-NAME and DATA."
-  (let ((response (read-char-choice prompt-text '(?y ?n ?q ?Y ?N ?Q))))
-    (setq claude-command--pre-tool-use-active nil)
-    (case response
-      ((?y ?Y)
-       (claude-command--send-pre-tool-use-response "allow" "User approved via minibuffer" buffer-name)
-       (message "Tool use approved"))
-      ((?q ?Q)
-       (claude-command--send-pre-tool-use-response "ask" "User requested UI confirmation" buffer-name)
-       (message "Requesting UI confirmation"))
-      ((?n ?N)
-       (claude-command--send-pre-tool-use-response "deny" "User denied via minibuffer" buffer-name)
-       (message "Tool use denied"))
-      (t
-       (claude-command--send-pre-tool-use-response "ask" "Invalid response, requesting UI confirmation" buffer-name)
-       (message "Invalid response, requesting UI confirmation")))))
-
-(defun claude-command--send-pre-tool-use-response (decision reason buffer-name)
-  "Send PreToolUse response with DECISION and REASON for BUFFER-NAME.
-
-DECISION should be 'allow', 'deny', or 'ask'.
-REASON is an explanatory string."
-  (let ((response-json (json-encode `((hookSpecificOutput . ((hookEventName . "PreToolUse")
-                                                            (permissionDecision . ,decision)
-                                                            (permissionDecisionReason . ,reason)))))))
-    ;; Write the response to stdout so Claude Code can process it
-    ;; This mimics what a shell hook would do
-    (message "PreToolUse Response: %s" response-json)
-    (with-temp-file "/tmp/claude-pretooluse-response.json"
-      (insert response-json))
-    ;; Also print to stdout for debugging
-    (princ response-json)))
+;; Legacy event-based handler (for compatibility)
+(defun claude-command--handle-pre-tool-use (buffer-name json-data)
+  "Handle PreToolUse hook events via event system (fallback)."
+  (claude-command-pretooluse-handler buffer-name json-data))
 
 ;;;; Enhanced notification system
 
@@ -399,17 +384,26 @@ nil otherwise."
   "Handle Claude Command hook events for org-mode task tracking.
 
 MESSAGE is a plist with :type, :buffer-name, :json-data, and :args keys.
-This is designed to work with the new claude-code-event-hook system."
+This is designed to work with the new claude-code-event-hook system.
+Returns a JSON string for hooks that need to send responses to Claude Code."
   (let ((hook-type (plist-get message :type))
         (buffer-name (plist-get message :buffer-name))
         (json-data (plist-get message :json-data)))
     (cond
-     ((eq hook-type 'notification)
-      (claude-command--handle-task-completion buffer-name "Claude task completed" json-data))
-     ((eq hook-type 'stop)
-      (claude-command--handle-task-completion buffer-name "Claude session stopped" json-data))
      ((eq hook-type 'pre-tool-use)
-      (claude-command--handle-pre-tool-use buffer-name json-data)))))
+      ;; PreToolUse hooks need to return a JSON response
+      (claude-command-pretooluse-handler buffer-name json-data))
+     ((eq hook-type 'notification)
+      ;; Handle notifications normally, no response needed
+      (claude-command--handle-task-completion buffer-name "Claude task completed" json-data)
+      nil)
+     ((eq hook-type 'stop)
+      ;; Handle stop events normally, no response needed  
+      (claude-command--handle-task-completion buffer-name "Claude session stopped" json-data)
+      nil)
+     (t
+      ;; Handle other hook types normally, no response needed
+      nil))))
 
 (defun claude-command--handle-task-completion (buffer-name message json-data)
   "Handle a Claude task completion event.
