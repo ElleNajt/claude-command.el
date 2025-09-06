@@ -62,6 +62,13 @@ This provides a streamlined workflow for processing multiple completed tasks."
   :type 'boolean
   :group 'claude-command)
 
+(defcustom claude-command-check-allowlist t
+  "Whether to check Claude Code settings files for allowed tools.
+When non-nil, tools in the permissions.allow lists will be auto-approved.
+When nil, all tools will prompt for permission."
+  :type 'boolean
+  :group 'claude-command)
+
 (defcustom claude-command-notification-style 'message
   "How to display Claude task completion notifications.
 
@@ -70,9 +77,9 @@ This provides a streamlined workflow for processing multiple completed tasks."
 'both - Show both popup and message notifications
 'none - Disable notifications entirely"
   :type '(choice (const :tag "Popup window" popup)
-                 (const :tag "Echo area message" message)
-                 (const :tag "Both popup and message" both)
-                 (const :tag "No notifications" none))
+          (const :tag "Echo area message" message)
+          (const :tag "Both popup and message" both)
+          (const :tag "No notifications" none))
   :group 'claude-command)
 
 ;;;; Modeline notification support
@@ -85,15 +92,15 @@ This provides a streamlined workflow for processing multiple completed tasks."
 
 (defun claude-command--show-modeline-notification (message &optional timeout)
   "Show MESSAGE in the modeline for TIMEOUT seconds (default 10)."
-  (setq claude-command--modeline-notification 
+  (setq claude-command--modeline-notification
         (propertize (format " [Claude: %s]" message)
                     'face 'mode-line-emphasis))
   (force-mode-line-update t)
-  
+
   ;; Cancel any existing timer
   (when claude-command--modeline-notification-timer
     (cancel-timer claude-command--modeline-notification-timer))
-  
+
   ;; Set new timer to clear notification
   (setq claude-command--modeline-notification-timer
         (run-with-timer (or timeout 10) nil
@@ -111,7 +118,7 @@ This provides a streamlined workflow for processing multiple completed tasks."
   "Add Claude notifications to the modeline."
   ;; For regular modeline (non-doom-modeline)
   (unless (memq 'claude-command--modeline-notification global-mode-string)
-    (setq global-mode-string 
+    (setq global-mode-string
           (append global-mode-string '(claude-command--modeline-notification)))))
 
 ;;;; Org mode integration functions
@@ -144,7 +151,7 @@ to prevent duplicate entries in the queue."
   ;; First, remove any existing entry for this buffer
   (when buffer-name
     (claude-command--delete-queue-entry-for-buffer buffer-name))
-  
+
   (let* ((timestamp (claude-command--format-org-timestamp))
          (buffer-link (if buffer-name
                           (format "[[elisp:(switch-to-buffer \"%s\")][%s]]" buffer-name buffer-name)
@@ -305,51 +312,95 @@ to prevent duplicate entries in the queue."
 BUFFER-NAME is the Claude buffer name.
 JSON-INPUT is the tool data, read from stdin if not provided."
   (message "[PRETOOLUSE DEBUG] claude-command-pretooluse-handler called with buffer-name=%s json-input=%s" buffer-name json-input)
-  
-  (let* ((json-data (or json-input 
+
+  (let* ((json-data (or json-input
                         (with-temp-buffer
                           (while (not (eobp))
                             (insert (read-string "")))
                           (buffer-string))))
          (data (condition-case err
                    (json-read-from-string json-data)
-                 (error 
+                 (error
                   (message "[PRETOOLUSE ERROR] Failed to parse JSON: %s, data was: %s" err json-data)
                   nil)))
          (tool-name (when data (cdr (assq 'tool_name data))))
          (tool-input (when data (cdr (assq 'tool_input data))))
-         (tool-args (when data (cdr (assq 'tool_arguments data)))))
-    
+         (tool-args (when data (cdr (assq 'tool_arguments data))))
+         (tool-allowed-p (when claude-command-check-allowlist
+                           (message "[ALLOWLIST DEBUG] Checking allowlist for tool: '%s'" tool-name)
+                           (let ((all-allowed '())
+                                 (files-to-check (list (expand-file-name "~/.claude/settings.json")
+                                                      (expand-file-name ".claude/settings.json" default-directory)
+                                                       (expand-file-name ".claude/settings.local.json" default-directory))))
+                             (message "[ALLOWLIST DEBUG] Files to check: %s" files-to-check)
+                             (dolist (file files-to-check)
+                               (message "[ALLOWLIST DEBUG] Checking file: %s (exists: %s)" file (file-exists-p file))
+                               (when (file-exists-p file)
+                                 (condition-case err
+                                     (let* ((settings-content (with-temp-buffer
+                                                                (insert-file-contents file)
+                                                                (buffer-string)))
+                                            (settings-json (json-read-from-string settings-content))
+                                            (permissions (alist-get 'permissions settings-json))
+                                            (allow-list (alist-get 'allow permissions)))
+                                       (message "[ALLOWLIST DEBUG] File %s - found %d items" file (if (arrayp allow-list) (length allow-list) 0))
+                                       (when (arrayp allow-list)
+                                         (setq all-allowed (append all-allowed (append allow-list nil)))))
+                                   (error (message "[ALLOWLIST DEBUG] Error reading file %s: %s" file err)))))
+                             (setq all-allowed (delete-dups all-allowed))
+                             (message "[ALLOWLIST DEBUG] Final allowlist: %s" all-allowed)
+                             ;; Check if current tool matches any allowed pattern
+                             (let ((result (cl-some (lambda (allowed-pattern)
+                                                      (let ((exact-match (string= tool-name allowed-pattern))
+                                                            (prefix-match (string-prefix-p (concat tool-name "(") allowed-pattern))
+                                                            (regex-match (string-match-p (regexp-quote allowed-pattern) tool-name)))
+                                                        (message "[ALLOWLIST DEBUG] Testing '%s' vs '%s': exact=%s prefix=%s regex=%s" 
+                                                                tool-name allowed-pattern exact-match prefix-match regex-match)
+                                                        (or exact-match prefix-match regex-match)))
+                                                    all-allowed)))
+                               (message "[ALLOWLIST DEBUG] Final result: %s" result)
+                               result)))))
+
     (message "[PRETOOLUSE DEBUG] Parsed data: tool-name=%s tool-input=%s tool-args=%s" tool-name tool-input tool-args)
-    
-    (let ((prompt-text (format "Claude wants to use %s%s - Allow? (y/n/q): " 
-                              (or tool-name "unknown tool")
-                              (if (or tool-args tool-input)
-                                  (format " with args: %s" 
-                                         (json-encode (or tool-input tool-args)))
-                                ""))))
-      
-      (message "[PRETOOLUSE DEBUG] Showing prompt: %s" prompt-text)
-      
-      ;; Show prompt and get user response
-      (let* ((response (read-char-choice prompt-text '(?y ?n ?q ?Y ?N ?Q)))
-             (decision (cond
-                       ((memq response '(?y ?Y)) "allow")
-                       ((memq response '(?n ?N)) "deny")
-                       (t "ask")))
-             (reason (cond
-                     ((string= decision "allow") "User approved via minibuffer")
-                     ((string= decision "deny") "User denied via minibuffer")
-                     (t "User requested UI confirmation")))
-             (response-json (json-encode `((hookSpecificOutput . ((hookEventName . "PreToolUse")
-                                                                 (permissionDecision . ,decision)
-                                                                 (permissionDecisionReason . ,reason)))))))
-        
-        (message "[PRETOOLUSE DEBUG] User chose: %s, sending response: %s" decision response-json)
-        (message "PreToolUse: %s" decision)
-        
-        ;; Return the response for claude-code-handle-hook to output
-        response-json))))
+
+    ;; Check allowlist first
+    (if tool-allowed-p
+        ;; Tool is allowed, auto-approve
+        (let ((response-json (json-encode `((hookSpecificOutput . ((hookEventName . "PreToolUse")
+                                                                   (permissionDecision . "allow")
+                                                                   (permissionDecisionReason . "Tool in allowed list")))))))
+          (message "[ALLOWLIST DEBUG] AUTO-ALLOWING tool '%s'" tool-name)
+          (message "PreToolUse: allow (auto)")
+          response-json)
+      ;; Tool not in allowlist or allowlist disabled, prompt user
+      (let ((prompt-text (format "Claude wants to use %s%s - Allow? (y/n/q): "
+                                 (or tool-name "unknown tool")
+                                 (if (or tool-args tool-input)
+                                     (format " with args: %s"
+                                             (json-encode (or tool-input tool-args)))
+                                   ""))))
+
+        (message "[PRETOOLUSE DEBUG] Showing prompt: %s" prompt-text)
+
+        ;; Show prompt and get user response
+        (let* ((response (read-char-choice prompt-text '(?y ?n ?q ?Y ?N ?Q)))
+               (decision (cond
+                          ((memq response '(?y ?Y)) "allow")
+                          ((memq response '(?n ?N)) "deny")
+                          (t "ask")))
+               (reason (cond
+                        ((string= decision "allow") "User approved via minibuffer")
+                        ((string= decision "deny") "User denied via minibuffer")
+                        (t "User requested UI confirmation")))
+               (response-json (json-encode `((hookSpecificOutput . ((hookEventName . "PreToolUse")
+                                                                    (permissionDecision . ,decision)
+                                                                    (permissionDecisionReason . ,reason)))))))
+
+          (message "[PRETOOLUSE DEBUG] User chose: %s, sending response: %s" decision response-json)
+          (message "PreToolUse: %s" decision)
+
+          ;; Return the response for claude-code-handle-hook to output
+          response-json)))))
 
 ;; Legacy event-based handler (for compatibility)
 (defun claude-command--handle-pre-tool-use (buffer-name json-data)
@@ -364,7 +415,7 @@ JSON-INPUT is the tool data, read from stdin if not provided."
 Returns t if the buffer is visible in a window in the current perspective,
 nil otherwise."
   (when-let ((target-buffer (get-buffer buffer-name)))
-    (and 
+    (and
      ;; Buffer exists and is live
      (buffer-live-p target-buffer)
      ;; Buffer has a visible window
@@ -398,7 +449,7 @@ Returns a JSON string for hooks that need to send responses to Claude Code."
       (claude-command--handle-task-completion buffer-name "Claude task completed" json-data)
       nil)
      ((eq hook-type 'stop)
-      ;; Handle stop events normally, no response needed  
+      ;; Handle stop events normally, no response needed
       (claude-command--handle-task-completion buffer-name "Claude session stopped" json-data)
       nil)
      (t
@@ -413,32 +464,32 @@ MESSAGE is the notification message to display and log.
 JSON-DATA is the JSON payload from Claude CLI."
   (let* ((notification-buffer claude-command-notification-buffer-name)
          (target-buffer (when buffer-name (get-buffer buffer-name)))
-         (has-workspace (and buffer-name 
+         (has-workspace (and buffer-name
                              (claude-command--get-workspace-from-buffer-name buffer-name)))
          (buffer-visible (claude-command--buffer-visible-in-current-perspective-p buffer-name)))
 
     ;; Always add entry to org file regardless of visibility
     (claude-command--add-org-todo-entry buffer-name message)
-    
+
     ;; Show notifications based on style setting, but only if buffer is not currently visible
     (unless (or buffer-visible (eq claude-command-notification-style 'none))
       (let* ((queue-total (length (claude-command--get-all-queue-entries)))
-             (notification-text (format "%s%s - Buffer: %s" 
+             (notification-text (format "%s%s - Buffer: %s"
                                         message
                                         (if (> queue-total 0)
                                             (format " (%d in queue)" queue-total)
                                           "")
                                         (or buffer-name "unknown buffer")))
-             (short-notification (format "%s (%d in queue)" 
-                                        (if (string-match "Claude \\(.*\\)" message)
-                                            (match-string 1 message)
-                                          message)
-                                        queue-total)))
-        
+             (short-notification (format "%s (%d in queue)"
+                                         (if (string-match "Claude \\(.*\\)" message)
+                                             (match-string 1 message)
+                                           message)
+                                         queue-total)))
+
         ;; Show message notification
         (when (memq claude-command-notification-style '(message both))
           (message "Claude: %s" short-notification))
-        
+
         ;; Show popup notification
         (when (memq claude-command-notification-style '(popup both))
           (with-current-buffer (get-buffer-create notification-buffer)
@@ -447,22 +498,22 @@ JSON-DATA is the JSON payload from Claude CLI."
               (insert notification-text)
               (goto-char (point-min))
               (setq buffer-read-only t))
-            
+
             ;; Display as small popup without stealing focus
-            (display-buffer notification-buffer 
+            (display-buffer notification-buffer
                             '((display-buffer-in-side-window)
                               (side . bottom)
                               (window-height . 1)
                               (select . nil)))
-            
+
             ;; Auto-dismiss after 2 seconds
             (run-with-timer 2 nil `(lambda ()
                                      (when (get-buffer ,notification-buffer)
                                        (kill-buffer ,notification-buffer))))))))
-    
+
     ;; Disabled complex popup - keeping code for potential future use
     (when nil  ;; Change to t to re-enable complex popups
-      (unless (and target-buffer 
+      (unless (and target-buffer
                    (or (get-buffer-window target-buffer)
                        (eq (current-buffer) target-buffer)))
         ;; Create and display notification buffer
@@ -521,7 +572,7 @@ JSON-DATA is the JSON payload from Claude CLI."
                            'help-echo "Click to skip this queue entry")
 
             (goto-char (point-min)))
-          
+
           ;; Display the notification buffer and set up dismissal
           (display-buffer notification-buffer
                           '((display-buffer-in-side-window)
@@ -529,7 +580,7 @@ JSON-DATA is the JSON payload from Claude CLI."
                             (window-height . 0.3)
                             (select . nil)))
           (claude-command--enable-notification-dismiss notification-buffer)
-          
+
           ;; Auto-dismiss timer
           (run-with-timer 10 nil `(lambda ()
                                     (when (buffer-live-p (get-buffer ,notification-buffer))
@@ -539,8 +590,8 @@ JSON-DATA is the JSON payload from Claude CLI."
 (defun claude-command-test-notification ()
   "Test the notification system interactively."
   (interactive)
-  (claude-command-org-notification-listener 
-   (list :type 'notification 
+  (claude-command-org-notification-listener
+   (list :type 'notification
          :buffer-name (buffer-name)
          :json-data "{\"test\": true}"
          :args '())))
@@ -549,8 +600,8 @@ JSON-DATA is the JSON payload from Claude CLI."
 (defun claude-command-test-pre-tool-use ()
   "Test the PreToolUse system interactively."
   (interactive)
-  (claude-command-org-notification-listener 
-   (list :type 'pre-tool-use 
+  (claude-command-org-notification-listener
+   (list :type 'pre-tool-use
          :buffer-name (buffer-name)
          :json-data "{\"tool_name\": \"Test Tool\", \"tool_arguments\": {\"arg1\": \"value1\"}}"
          :args '())))
@@ -573,7 +624,7 @@ JSON-DATA is the JSON payload from Claude CLI."
                                              (hooks . [((type . "command")
                                                         (command . ,(format "%s --eval \"(claude-code-handle-hook 'stop \\\"$CLAUDE_BUFFER_NAME\\\")\" \"$(cat)\""
                                                                             emacsclient-cmd)))]))])
-                                   
+
                                    (PreToolUse . [((matcher . "")
                                                    (hooks . [((type . "command")
                                                               (command . ,(format "%s --eval \"(claude-code-handle-hook 'pre-tool-use \\\"$CLAUDE_BUFFER_NAME\\\")\" \"$(cat)\""
@@ -702,8 +753,8 @@ JSON-DATA is the JSON payload from Claude CLI."
         (insert-file-contents claude-command-taskmaster-org-file)
         (goto-char (point-min))
         (while (not (eobp))
-          (let ((line (buffer-substring-no-properties 
-                       (line-beginning-position) 
+          (let ((line (buffer-substring-no-properties
+                       (line-beginning-position)
                        (line-end-position))))
             (cond
              ;; Start of a new TODO entry
@@ -717,7 +768,7 @@ JSON-DATA is the JSON payload from Claude CLI."
               (setq current-entry-lines (list line))
               (setq in-matching-entry nil))
              ;; Check if this line contains our buffer name
-             ((and current-entry-lines 
+             ((and current-entry-lines
                    (string-match (regexp-quote buffer-name) line))
               (setq in-matching-entry t)
               (setq current-entry-lines (append current-entry-lines (list line))))
@@ -798,8 +849,8 @@ JSON-DATA is the JSON payload from Claude CLI."
          (total (length entries)))
     (if (zerop total)
         (message "Queue is empty")
-      (message "Queue: %d/%d entries, current: %s" 
-               (1+ claude-command--queue-position) total 
+      (message "Queue: %d/%d entries, current: %s"
+               (1+ claude-command--queue-position) total
                (nth claude-command--queue-position entries)))))
 
 ;;;###autoload
@@ -852,7 +903,7 @@ This function clears the current Claude buffer from the task queue and
 automatically switches to the next available queue entry. If no more
 entries exist, it displays a message."
   (let ((buffer-name (buffer-name)))
-    (when (and claude-command-auto-advance-queue 
+    (when (and claude-command-auto-advance-queue
                (string-match-p "^\\*claude:" buffer-name))
       ;; Clear current buffer from queue
       (when (claude-command--delete-queue-entry-for-buffer buffer-name)
@@ -860,7 +911,7 @@ entries exist, it displays a message."
         ;; Get remaining entries after clearing current one
         (let* ((remaining-entries (claude-command--get-all-queue-entries))
                ;; Filter out the current buffer from remaining entries (in case it wasn't properly cleared)
-               (other-entries (cl-remove-if (lambda (buf-name) 
+               (other-entries (cl-remove-if (lambda (buf-name)
                                               (string= buf-name buffer-name))
                                             remaining-entries)))
           (if other-entries
@@ -869,7 +920,7 @@ entries exist, it displays a message."
                 (setq claude-command--queue-position 0)
                 (let ((next-buffer (nth claude-command--queue-position other-entries)))
                   (claude-command--switch-to-workspace-for-buffer next-buffer)
-                  (message "Auto-advanced to next queue entry: %s (%d remaining)" 
+                  (message "Auto-advanced to next queue entry: %s (%d remaining)"
                            next-buffer (length other-entries))))
             (message "Queue is now empty - no more entries to process")))))))
 
@@ -911,7 +962,7 @@ When enabled, pressing enter in a Claude buffer will clear it from the
 queue and automatically advance to the next queue entry."
   (interactive)
   (setq claude-command-auto-advance-queue (not claude-command-auto-advance-queue))
-  (message "Claude Command auto-advance queue mode %s" 
+  (message "Claude Command auto-advance queue mode %s"
            (if claude-command-auto-advance-queue "enabled" "disabled")))
 
 ;;;; Hook Integration Setup
@@ -923,7 +974,7 @@ queue and automatically advance to the next queue entry."
   (add-hook 'claude-code-event-hook 'claude-command-org-notification-listener)
   (message "Claude Command org-mode notifications configured"))
 
-;;;###autoload  
+;;;###autoload
 (defun claude-command-remove ()
   "Remove org-mode notification listener from claude-code-event-hook."
   (interactive)
@@ -945,7 +996,7 @@ queue and automatically advance to the next queue entry."
 
 ;; Battlestation keybindings - C-c C-b prefix (original)
 (global-set-key (kbd "C-c C-b b") 'claude-command-queue-browse)           ; Browse queue
-(global-set-key (kbd "C-c C-b [") 'claude-command-queue-previous)         ; Previous in queue  
+(global-set-key (kbd "C-c C-b [") 'claude-command-queue-previous)         ; Previous in queue
 (global-set-key (kbd "C-c C-b ]") 'claude-command-queue-next)             ; Next in queue
 (global-set-key (kbd "C-c C-b g") 'claude-command-goto-recent-workspace)  ; Go to recent
 (global-set-key (kbd "C-c C-b r") 'claude-command-return-to-previous)     ; Return to previous
@@ -955,7 +1006,7 @@ queue and automatically advance to the next queue entry."
 
 ;; More ergonomic battlestation keybindings - C-c b prefix
 (global-set-key (kbd "C-c b b") 'claude-command-queue-browse)             ; Browse queue
-(global-set-key (kbd "C-c b [") 'claude-command-queue-previous)           ; Previous in queue  
+(global-set-key (kbd "C-c b [") 'claude-command-queue-previous)           ; Previous in queue
 (global-set-key (kbd "C-c b ]") 'claude-command-queue-next)               ; Next in queue
 (global-set-key (kbd "C-c b g") 'claude-command-goto-recent-workspace)    ; Go to recent
 (global-set-key (kbd "C-c b r") 'claude-command-return-to-previous)       ; Return to previous
